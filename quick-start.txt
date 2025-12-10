@@ -1,0 +1,14 @@
+# Setup React App
+cd S1-FRONTEND/React-App
+npm install
+npm start
+
+# Setup Express Backend
+cd ../../S2-BACKEND
+npm install
+npm start
+
+# Setup MongoDB Backend
+cd ../S3-DATABASE/MongoDB-Backend
+npm install
+npm start
