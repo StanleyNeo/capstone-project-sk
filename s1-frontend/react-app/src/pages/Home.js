@@ -1,33 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import PasswordStrength from '../components/PasswordStrength';
 import CourseToggle from '../components/CourseToggle';
+import Chatbot from '../components/Chatbot';
+import { useAuth } from '../contexts/AuthContext';
 import ApiService from '../services/api';
-import { useData } from '../contexts/DataContext';
 
 function Home() {
-  const { courses, loading, getRecommendations } = useData();
-  const [recommendation, setRecommendation] = useState('');
+  const { currentUser, isAuthenticated } = useAuth();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [recommendation, setRecommendation] = useState(null);
   const [interest, setInterest] = useState('');
+  const [level, setLevel] = useState('beginner');
   const [stats, setStats] = useState({
     totalCourses: 0,
-    enrolledCourses: 0,
+    activeStudents: 0,
     completionRate: 0
   });
 
   useEffect(() => {
-    if (courses.length > 0) {
-      setStats({
-        totalCourses: courses.length,
-        enrolledCourses: Math.floor(courses.length * 0.3),
-        completionRate: 65
-      });
-    }
-  }, [courses]);
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    setLoading(true);
+    const data = await ApiService.getCourses();
+    setCourses(data);
+    setStats({
+      totalCourses: data.length,
+      activeStudents: data.reduce((sum, course) => sum + course.students, 0),
+      completionRate: 78 // Simulated
+    });
+    setLoading(false);
+  };
 
   const handleGetRecommendation = async () => {
     if (interest.trim()) {
-      const result = await getRecommendations(interest);
-      setRecommendation(result.data?.recommendation || result.recommendation || 'No recommendation available');
+      const result = await ApiService.getRecommendations(interest, level);
+      setRecommendation(result);
     }
   };
 
@@ -37,7 +47,6 @@ function Home() {
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
-        <p className="mt-2">Loading data from backend...</p>
       </div>
     );
   }
@@ -45,8 +54,16 @@ function Home() {
   return (
     <div className="container mt-4">
       <h1 className="mb-4 text-primary">AI-Powered Learning Management System</h1>
-      <p className="lead mb-4">Live integration with backend APIs and databases</p>
       
+      {isAuthenticated && currentUser && (
+        <div className="alert alert-success">
+          Welcome back, <strong>{currentUser.name}</strong>! 
+          {currentUser.enrolledCourses?.length > 0 && 
+            ` You're enrolled in ${currentUser.enrolledCourses.length} courses.`
+          }
+        </div>
+      )}
+
       {/* Stats Dashboard */}
       <div className="row mb-4">
         <div className="col-md-4">
@@ -60,59 +77,103 @@ function Home() {
         <div className="col-md-4">
           <div className="card text-white bg-success">
             <div className="card-body">
-              <h5 className="card-title">Enrolled</h5>
-              <p className="card-text display-6">{stats.enrolledCourses}</p>
+              <h5 className="card-title">Active Students</h5>
+              <p className="card-text display-6">
+                {(stats.activeStudents / 1000).toFixed(1)}K
+              </p>
             </div>
           </div>
         </div>
         <div className="col-md-4">
           <div className="card text-white bg-warning">
             <div className="card-body">
-              <h5 className="card-title">Completion Rate</h5>
+              <h5 className="card-title">Success Rate</h5>
               <p className="card-text display-6">{stats.completionRate}%</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* AI Recommendation */}
+      {/* AI Recommendation Engine */}
       <div className="card mb-4">
         <div className="card-body">
-          <h3>AI Course Recommender</h3>
-          <div className="input-group mb-3">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Enter your interest (e.g., AI, Web, Data)"
-              value={interest}
-              onChange={(e) => setInterest(e.target.value)}
-            />
-            <button className="btn btn-primary" onClick={handleGetRecommendation}>
-              Get Recommendation
-            </button>
+          <h3 className="card-title">AI Course Recommender</h3>
+          <p className="card-text">
+            Tell us your interests and we'll recommend the perfect course for you!
+          </p>
+          
+          <div className="row mb-3">
+            <div className="col-md-6">
+              <label className="form-label">What are you interested in?</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g., Web Development, AI, Data Science, Design"
+                value={interest}
+                onChange={(e) => setInterest(e.target.value)}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label">Your Skill Level</label>
+              <select 
+                className="form-select"
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+            <div className="col-md-2 d-flex align-items-end">
+              <button 
+                className="btn btn-primary w-100"
+                onClick={handleGetRecommendation}
+              >
+                Get Recommendations
+              </button>
+            </div>
           </div>
+
           {recommendation && (
             <div className="alert alert-info">
-              <strong>AI Suggests:</strong> {recommendation}
+              <h5>AI Recommendations:</h5>
+              <p>{recommendation.message}</p>
+              {recommendation.recommendations && recommendation.recommendations.length > 0 && (
+                <div className="row mt-3">
+                  {recommendation.recommendations.slice(0, 2).map(course => (
+                    <div className="col-md-6" key={course.id}>
+                      <div className="card">
+                        <div className="card-body">
+                          <h6>{course.name}</h6>
+                          <p className="small">{course.description.substring(0, 100)}...</p>
+                          <span className="badge bg-primary">{course.level}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Course Preview */}
+      {/* Featured Courses */}
       <div className="card mb-4">
         <div className="card-body">
-          <h3>Available Courses (From Backend)</h3>
+          <h3 className="card-title">Featured Courses</h3>
           <div className="row">
-            {courses.slice(0, 2).map(course => (
-              <div className="col-md-6 mb-3" key={course.id}>
-                <div className="card">
+            {courses.slice(0, 3).map(course => (
+              <div className="col-md-4" key={course.id}>
+                <div className="card h-100">
                   <div className="card-body">
                     <h5 className="card-title">{course.name}</h5>
-                    <p className="card-text">{course.description || 'Learn essential skills'}</p>
-                    <p className="card-text">
-                      <small className="text-muted">Level: {course.level || 'Beginner'}</small>
-                    </p>
+                    <p className="card-text">{course.description.substring(0, 100)}...</p>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <span className="badge bg-secondary">{course.level}</span>
+                      <span className="text-primary fw-bold">{course.price}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -121,8 +182,8 @@ function Home() {
         </div>
       </div>
 
-      {/* Original Components */}
-      <div className="row">
+      {/* Practice Components */}
+      <div className="row mb-4">
         <div className="col-md-6">
           <PasswordStrength />
         </div>
@@ -130,6 +191,9 @@ function Home() {
           <CourseToggle />
         </div>
       </div>
+
+      {/* Chatbot */}
+      <Chatbot />
     </div>
   );
 }

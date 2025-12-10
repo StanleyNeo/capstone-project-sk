@@ -1,0 +1,23 @@
+{
+  "name": "lms-backend",
+  "version": "1.0.0",
+  "description": "AI LMS Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^4.22.1",
+    "mongoose": "^9.0.1"
+  },
+  "keywords": [
+    "lms",
+    "backend",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

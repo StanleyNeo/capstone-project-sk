@@ -1,18 +1,57 @@
+// s2-backend/server.js - COMPLETE FILE
 const express = require('express');
+const cors = require('cors');
+const mongoose = require('mongoose');
+
+// Initialize Express app - MUST BE AT THE TOP
 const app = express();
 const PORT = 5001;
 
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Simulated database
+// Connect to MongoDB for user data
+mongoose.connect('mongodb://localhost:27017/lms_users', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', () => {
+  console.log('Connected to User Database');
+});
+
+// Define User Model Schema
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: { type: String, unique: true },
+  password: String,
+  enrolledCourses: [{
+    courseId: Number,
+    courseName: String,
+    progress: { type: Number, default: 0 },
+    enrolledAt: { type: Date, default: Date.now }
+  }]
+});
+
+const UserModel = mongoose.model('User', userSchema);
+
+// Simulated course database
 const courses = [
   { 
     id: 1, 
     name: 'React for Beginners',
-    description: 'Learn React fundamentals and build your first application',
+    description: 'Learn React fundamentals and build your first application.',
     duration: '4 weeks',
     level: 'Beginner',
-    category: 'Web Development'
+    category: 'Web Development',
+    instructor: 'Sarah Johnson',
+    price: '$49.99',
+    rating: 4.8,
+    students: 1250,
+    modules: 12
   },
   { 
     id: 2, 
@@ -20,36 +59,51 @@ const courses = [
     description: 'Introduction to data analysis and machine learning concepts',
     duration: '6 weeks',
     level: 'Intermediate',
-    category: 'Data Science'
+    category: 'Data Science',
+    instructor: 'Michael Chen',
+    price: '$69.99',
+    rating: 4.7,
+    students: 890,
+    modules: 16
   },
   { 
     id: 3, 
     name: 'AI Fundamentals',
-    description: 'Understand the basics of artificial intelligence and machine learning',
+    description: 'Understand artificial intelligence and machine learning',
     duration: '8 weeks',
     level: 'Advanced',
-    category: 'AI/ML'
-  },
-  { 
-    id: 4, 
-    name: 'Full Stack Web Development',
-    description: 'Build complete web applications with React, Node.js, and MongoDB',
-    duration: '12 weeks',
-    level: 'Intermediate',
-    category: 'Web Development'
-  },
-  { 
-    id: 5, 
-    name: 'Python Programming',
-    description: 'Master Python programming from basics to advanced topics',
-    duration: '5 weeks',
-    level: 'Beginner',
-    category: 'Programming'
+    category: 'AI/ML',
+    instructor: 'Dr. Emily Wilson',
+    price: '$89.99',
+    rating: 4.9,
+    students: 540,
+    modules: 20
   }
 ];
 
-const enrollments = [];
-const userProgress = {};
+// Password validation middleware function
+const validatePassword = (password) => {
+  const requirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password),
+    noSpaces: !/\s/.test(password)
+  };
+
+  const failedRequirements = Object.entries(requirements)
+    .filter(([_, met]) => !met)
+    .map(([key]) => key);
+
+  return {
+    valid: failedRequirements.length === 0,
+    failedRequirements,
+    score: (Object.values(requirements).filter(Boolean).length / 6) * 100
+  };
+};
+
+// =================== ROUTES ===================
 
 // Home route
 app.get('/', (req, res) => {
@@ -58,15 +112,15 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: [
       'GET  /courses - List all courses',
-      'GET  /recommend?interest=ai - Get AI recommendations',
-      'POST /enroll - Enroll in a course',
-      'GET  /user/:id/courses - Get user courses',
-      'POST /track-progress - Track learning progress'
+      'POST /api/register - Register new user',
+      'POST /api/login - Login user',
+      'GET  /api/user/:id - Get user profile',
+      'POST /enroll - Enroll in course'
     ]
   });
 });
 
-// GET all courses
+// Get all courses
 app.get('/courses', (req, res) => {
   res.json({
     success: true,
@@ -75,164 +129,302 @@ app.get('/courses', (req, res) => {
   });
 });
 
+// Get course by ID
+app.get('/courses/:id', (req, res) => {
+  const course = courses.find(c => c.id === parseInt(req.params.id));
+  if (!course) {
+    return res.status(404).json({ 
+      success: false, 
+      error: 'Course not found' 
+    });
+  }
+  
+  res.json({
+    success: true,
+    data: course
+  });
+});
+
 // AI Recommendation endpoint
 app.get('/recommend', (req, res) => {
   const interest = (req.query.interest || '').toLowerCase();
-  let recommendation = 'Explore our full course catalog';
+  const level = req.query.level || 'beginner';
   
-  const interestMap = {
-    'web': 'Full Stack Web Development',
-    'react': 'React for Beginners',
-    'data': 'Intro to Data Science',
-    'ai': 'AI Fundamentals',
-    'python': 'Python Programming',
-    'machine': 'AI Fundamentals',
-    'javascript': 'React for Beginners'
-  };
-
-  for (const [key, courseName] of Object.entries(interestMap)) {
-    if (interest.includes(key)) {
-      const course = courses.find(c => c.name === courseName);
-      recommendation = course ? `${course.name}: ${course.description}` : courseName;
-      break;
-    }
+  let recommendations = [];
+  
+  // AI Logic based on interest and level
+  if (interest.includes('web') || interest.includes('react')) {
+    recommendations = courses.filter(c => 
+      c.category === 'Web Development' && 
+      c.level.toLowerCase() === level
+    );
+  } else if (interest.includes('data') || interest.includes('python')) {
+    recommendations = courses.filter(c => 
+      (c.category === 'Data Science' || c.category === 'Programming') && 
+      c.level.toLowerCase() === level
+    );
+  } else if (interest.includes('ai') || interest.includes('machine')) {
+    recommendations = courses.filter(c => 
+      c.category === 'AI/ML' && 
+      c.level.toLowerCase() === level
+    );
+  } else {
+    // Default: recommend popular courses
+    recommendations = courses
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 3);
   }
-
+  
   res.json({
     success: true,
     data: {
       interest,
-      recommendation,
-      timestamp: new Date().toISOString()
+      level,
+      recommendations,
+      message: `Found ${recommendations.length} courses for you`
     }
   });
 });
 
-// POST enroll in course
-app.post('/enroll', (req, res) => {
-  if (!req.body.userId || !req.body.courseId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing userId or courseId in request.',
-      message: 'Both userId and courseId are required fields'
-    });
-  }
-  
-  const { userId, courseId } = req.body;
-  const course = courses.find(c => c.id === parseInt(courseId));
-  
-  if (!course) {
-    return res.status(404).json({
-      success: false,
-      error: 'Course not found',
-      message: `Course with ID ${courseId} does not exist`
-    });
-  }
-  
-  // Simulate enrollment
-  const enrollmentId = enrollments.length + 1;
-  const enrollmentDate = new Date().toISOString();
-  
-  enrollments.push({
-    enrollmentId,
-    userId,
-    courseId: parseInt(courseId),
-    enrollmentDate,
-    status: 'enrolled'
-  });
-  
-  // Initialize progress tracking
-  const userKey = `${userId}-${courseId}`;
-  if (!userProgress[userKey]) {
-    userProgress[userKey] = {
-      progress: 0,
-      score: 0,
-      lastUpdated: enrollmentDate
-    };
-  }
-  
-  res.json({
-    success: true,
-    data: {
-      enrollmentId,
-      userId,
-      courseId,
-      courseName: course.name,
-      enrollmentDate,
-      status: 'enrolled'
-    },
-    message: `User ${userId} successfully enrolled in "${course.name}"`
-  });
-});
-
-// GET user courses
-app.get('/user/:id/courses', (req, res) => {
-  const userId = req.params.id;
-  const userEnrollments = enrollments.filter(e => e.userId === userId);
-  
-  const userCourses = userEnrollments.map(enrollment => {
-    const course = courses.find(c => c.id === enrollment.courseId);
-    const userKey = `${userId}-${enrollment.courseId}`;
-    const progress = userProgress[userKey] || { progress: 0, score: 0 };
+// Registration endpoint
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
     
-    return {
-      courseId: enrollment.courseId,
-      courseName: course?.name || 'Unknown Course',
-      enrollmentDate: enrollment.enrollmentDate,
-      status: enrollment.status,
-      progress: progress.progress,
-      score: progress.score,
-      lastUpdated: progress.lastUpdated
-    };
-  });
-  
-  res.json({
-    success: true,
-    data: {
-      userId,
-      courses: userCourses,
-      totalCourses: userCourses.length
+    // Validate password
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password does not meet security requirements',
+        failedRequirements: passwordValidation.failedRequirements,
+        score: passwordValidation.score
+      });
     }
-  });
+    
+    // Check if user exists
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email already registered' 
+      });
+    }
+    
+    // Create new user
+    const user = new UserModel({
+      name,
+      email,
+      password, // Note: In production, use bcrypt.hash(password, 10)
+      enrolledCourses: []
+    });
+    
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: 'Registration successful',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      },
+      passwordStrength: {
+        score: passwordValidation.score,
+        level: passwordValidation.score >= 70 ? 'Strong' : 
+               passwordValidation.score >= 40 ? 'Medium' : 'Weak'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
 });
 
-// POST track progress
-app.post('/track-progress', (req, res) => {
-  const { userId, courseId, progress, score } = req.body;
-  
-  if (!userId || !courseId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Missing required fields',
-      message: 'userId and courseId are required'
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Find user
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid credentials' 
+      });
+    }
+    
+    // Simple password check (in production, use bcrypt.compare())
+    if (user.password !== password) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid credentials' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        enrolledCourses: user.enrolledCourses
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
-  
-  const userKey = `${userId}-${courseId}`;
-  const course = courses.find(c => c.id === parseInt(courseId));
-  
-  if (!course) {
-    return res.status(404).json({
-      success: false,
-      error: 'Course not found',
-      message: `Course with ID ${courseId} does not exist`
+});
+
+// Get user profile
+app.get('/api/user/:id', async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        enrolledCourses: user.enrolledCourses
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
-  
-  userProgress[userKey] = {
-    progress: Math.min(100, Math.max(0, progress || 0)),
-    score: Math.min(100, Math.max(0, score || 0)),
-    lastUpdated: new Date().toISOString()
-  };
+});
+
+// Enroll in course
+app.post('/enroll', async (req, res) => {
+  try {
+    const { userId, courseId } = req.body;
+    
+    if (!userId || !courseId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing userId or courseId'
+      });
+    }
+    
+    const course = courses.find(c => c.id === parseInt(courseId));
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course not found'
+      });
+    }
+    
+    // Update user's enrolled courses
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Check if already enrolled
+    const alreadyEnrolled = user.enrolledCourses.some(c => c.courseId === parseInt(courseId));
+    if (alreadyEnrolled) {
+      return res.status(400).json({
+        success: false,
+        error: 'Already enrolled in this course'
+      });
+    }
+    
+    user.enrolledCourses.push({
+      courseId: parseInt(courseId),
+      courseName: course.name,
+      progress: 0,
+      enrolledAt: new Date()
+    });
+    
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: `Successfully enrolled in "${course.name}"`,
+      data: {
+        courseId,
+        courseName: course.name,
+        enrolledAt: new Date()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Update progress
+app.post('/progress', async (req, res) => {
+  try {
+    const { userId, courseId, progress } = req.body;
+    
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    const courseIndex = user.enrolledCourses.findIndex(c => c.courseId === parseInt(courseId));
+    if (courseIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Course not found in enrolled courses'
+      });
+    }
+    
+    user.enrolledCourses[courseIndex].progress = Math.min(100, Math.max(0, progress));
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: 'Progress updated',
+      data: user.enrolledCourses[courseIndex]
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Password validation endpoint
+app.post('/api/validate-password', (req, res) => {
+  const { password } = req.body;
+  const validation = validatePassword(password);
   
   res.json({
     success: true,
     data: {
-      userId,
-      courseId,
-      courseName: course.name,
-      ...userProgress[userKey],
-      message: 'Progress updated successfully'
+      valid: validation.valid,
+      score: validation.score,
+      failedRequirements: validation.failedRequirements,
+      level: validation.score >= 70 ? 'Strong' : 
+             validation.score >= 40 ? 'Medium' : 'Weak'
     }
   });
 });
@@ -258,6 +450,6 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Express Backend running on http://localhost:${PORT}`);
-  console.log('Simulated data loaded successfully');
+  console.log(`Enhanced Express Backend running on http://localhost:${PORT}`);
+  console.log('User database connected and ready');
 });

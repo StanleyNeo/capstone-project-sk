@@ -1,16 +1,60 @@
-// API service for backend communication
 const API_BASE_URL = 'http://localhost:5001';
 const MONGO_API_URL = 'http://localhost:5000/api';
 
 class ApiService {
-  // Express Backend API calls
+  // Authentication
+  static async register(userData) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData)
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, error: 'Connection failed' };
+    }
+  }
+
+  static async login(credentials) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials)
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Connection failed' };
+    }
+  }
+
+  // Courses
   static async getCourses() {
     try {
       const response = await fetch(`${API_BASE_URL}/courses`);
-      return await response.json();
+      const data = await response.json();
+      return data.success ? data.data : [];
     } catch (error) {
       console.error('Error fetching courses:', error);
       return [];
+    }
+  }
+
+  static async getCourseById(id) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/courses/${id}`);
+      const data = await response.json();
+      return data.success ? data.data : null;
+    } catch (error) {
+      console.error('Error fetching course:', error);
+      return null;
     }
   }
 
@@ -21,46 +65,51 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId, courseId }),
+        body: JSON.stringify({ userId, courseId })
       });
       return await response.json();
     } catch (error) {
       console.error('Error enrolling:', error);
-      return { error: 'Failed to enroll' };
+      return { success: false, error: 'Enrollment failed' };
     }
   }
 
-  static async getUserCourses(userId) {
+  static async updateProgress(userId, courseId, progress) {
     try {
-      const response = await fetch(`${API_BASE_URL}/user/${userId}/courses`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching user courses:', error);
-      return [];
-    }
-  }
-
-  static async trackProgress(userId, courseId, progress, score) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/track-progress`, {
+      const response = await fetch(`${API_BASE_URL}/progress`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId, courseId, progress, score }),
+        body: JSON.stringify({ userId, courseId, progress })
       });
       return await response.json();
     } catch (error) {
-      console.error('Error tracking progress:', error);
-      return { error: 'Failed to track progress' };
+      console.error('Error updating progress:', error);
+      return { success: false, error: 'Update failed' };
     }
   }
 
-  // MongoDB API calls
+  // AI Recommendations
+  static async getRecommendations(interest, level = 'beginner') {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/recommend?interest=${interest}&level=${level}`
+      );
+      const data = await response.json();
+      return data.success ? data.data : { recommendations: [] };
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      return { recommendations: [] };
+    }
+  }
+
+  // MongoDB Schools
   static async getSchools() {
     try {
       const response = await fetch(`${MONGO_API_URL}/schools`);
-      return await response.json();
+      const data = await response.json();
+      return data.success ? data.data : [];
     } catch (error) {
       console.error('Error fetching schools:', error);
       return [];
@@ -74,23 +123,12 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(schoolData),
+        body: JSON.stringify(schoolData)
       });
       return await response.json();
     } catch (error) {
       console.error('Error adding school:', error);
-      return { error: 'Failed to add school' };
-    }
-  }
-
-  // AI Recommendation API
-  static async getRecommendations(interest) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/recommend?interest=${interest}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error getting recommendations:', error);
-      return { recommendation: 'Try courses in Web Development or AI' };
+      return { success: false, error: 'Failed to add school' };
     }
   }
 }

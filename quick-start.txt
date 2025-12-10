@@ -12,3 +12,18 @@ npm start
 cd ../S3-DATABASE/MongoDB-Backend
 npm install
 npm start
+
+Terminal 1 - MongoDB Backend:
+bash
+cd s3-database/MongoDB-Backend
+npm start
+
+Terminal 2 - Express Backend:
+bash
+cd s2-backend
+npm start
+
+Terminal 3 - React Frontend:
+bash
+cd s1-frontend/react-app
+npm start
