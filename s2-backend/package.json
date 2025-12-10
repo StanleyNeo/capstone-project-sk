@@ -8,6 +8,14 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
-  }
+    "cors": "^2.8.5",
+    "express": "^4.22.1"
+  },
+  "keywords": [
+    "lms",
+    "backend",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
