@@ -9,6 +9,7 @@ function Courses() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [filter, setFilter] = useState('all');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadCourses();
@@ -19,9 +20,15 @@ function Courses() {
 
   const loadCourses = async () => {
     setLoading(true);
-    const data = await ApiService.getCourses();
-    setCourses(data);
-    setLoading(false);
+    try {
+      const data = await ApiService.getCourses();
+      setCourses(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading courses:', error);
+      setError('Failed to load courses');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEnroll = async (courseId) => {
@@ -65,7 +72,7 @@ function Courses() {
     ? courses 
     : courses.filter(course => course.category === filter);
 
-  const categories = ['all', ...new Set(courses.map(c => c.category))];
+  const categories = ['all', ...new Set(courses.map(c => c.category).filter(Boolean))];
 
   if (loading) {
     return (
@@ -73,6 +80,14 @@ function Courses() {
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mt-4">
+        <div className="alert alert-danger">{error}</div>
       </div>
     );
   }
@@ -116,24 +131,24 @@ function Courses() {
                   fontSize: '24px',
                   fontWeight: 'bold'
                 }}>
-                  {course.name.split(' ').map(word => word[0]).join('')}
+                  {course.name ? course.name.split(' ').map(word => word[0]).join('') : 'Course'}
                 </div>
                 <div className="card-body">
-                  <h5 className="card-title">{course.name}</h5>
-                  <p className="card-text">{course.description}</p>
+                  <h5 className="card-title">{course.name || 'Unnamed Course'}</h5>
+                  <p className="card-text">{course.description || 'No description available'}</p>
                   
                   <div className="mb-2">
-                    <span className="badge bg-primary me-2">{course.level}</span>
-                    <span className="badge bg-secondary me-2">{course.duration}</span>
-                    <span className="badge bg-success">{course.rating} ★</span>
+                    <span className="badge bg-primary me-2">{course.level || 'All Levels'}</span>
+                    <span className="badge bg-secondary me-2">{course.duration || 'Self-paced'}</span>
+                    <span className="badge bg-success">{course.rating || 4.0} ★</span>
                   </div>
                   
                   <div className="mb-3">
                     <small className="text-muted">
                       <i className="bi bi-person me-1"></i>
-                      {course.students.toLocaleString()} students • 
+                      {(course.students || 0).toLocaleString()} students • 
                       <i className="bi bi-book ms-2 me-1"></i>
-                      {course.modules} modules
+                      {course.modules || 0} modules
                     </small>
                   </div>
                   
@@ -162,13 +177,13 @@ function Courses() {
                       className="btn btn-primary"
                       onClick={() => handleEnroll(course.id)}
                     >
-                      Enroll Now - {course.price}
+                      Enroll Now - {course.price || 'Free'}
                     </button>
                   )}
                 </div>
                 <div className="card-footer">
                   <small className="text-muted">
-                    Instructor: {course.instructor}
+                    Instructor: {course.instructor || 'TBA'}
                   </small>
                 </div>
               </div>

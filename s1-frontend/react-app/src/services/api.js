@@ -1,15 +1,13 @@
-const API_BASE_URL = 'http://localhost:5001';
-const MONGO_API_URL = 'http://localhost:5000/api';
+const COURSES_API_URL = 'http://localhost:5001';  // AI LMS Backend
+const SCHOOLS_API_URL = 'http://localhost:5000';  // MongoDB Backend
 
 class ApiService {
-  // Authentication
+  // ========== AUTHENTICATION (Port 5001) ==========
   static async register(userData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/register`, {
+      const response = await fetch(`${COURSES_API_URL}/api/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData)
       });
       return await response.json();
@@ -21,11 +19,9 @@ class ApiService {
 
   static async login(credentials) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/login`, {
+      const response = await fetch(`${COURSES_API_URL}/api/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)
       });
       return await response.json();
@@ -35,21 +31,26 @@ class ApiService {
     }
   }
 
-  // Courses
+  // ========== COURSES (Port 5001) ==========
   static async getCourses() {
     try {
-      const response = await fetch(`${API_BASE_URL}/courses`);
+      const response = await fetch(`${COURSES_API_URL}/courses`);
       const data = await response.json();
       return data.success ? data.data : [];
     } catch (error) {
       console.error('Error fetching courses:', error);
-      return [];
+      // Fallback to sample data
+      return [
+        { id: 1, name: 'React for Beginners', description: 'Learn React fundamentals', level: 'Beginner' },
+        { id: 2, name: 'Data Science', description: 'Master data analysis', level: 'Intermediate' },
+        { id: 3, name: 'AI Fundamentals', description: 'Understand AI and ML', level: 'Advanced' }
+      ];
     }
   }
 
   static async getCourseById(id) {
     try {
-      const response = await fetch(`${API_BASE_URL}/courses/${id}`);
+      const response = await fetch(`${COURSES_API_URL}/courses/${id}`);
       const data = await response.json();
       return data.success ? data.data : null;
     } catch (error) {
@@ -60,11 +61,9 @@ class ApiService {
 
   static async enrollCourse(userId, courseId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/enroll`, {
+      const response = await fetch(`${COURSES_API_URL}/enroll`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, courseId })
       });
       return await response.json();
@@ -76,11 +75,9 @@ class ApiService {
 
   static async updateProgress(userId, courseId, progress) {
     try {
-      const response = await fetch(`${API_BASE_URL}/progress`, {
+      const response = await fetch(`${COURSES_API_URL}/progress`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, courseId, progress })
       });
       return await response.json();
@@ -90,11 +87,11 @@ class ApiService {
     }
   }
 
-  // AI Recommendations
+  // ========== AI RECOMMENDATIONS (Port 5001) ==========
   static async getRecommendations(interest, level = 'beginner') {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/recommend?interest=${interest}&level=${level}`
+        `${COURSES_API_URL}/recommend?interest=${encodeURIComponent(interest)}&level=${level}`
       );
       const data = await response.json();
       return data.success ? data.data : { recommendations: [] };
@@ -104,10 +101,10 @@ class ApiService {
     }
   }
 
-  // MongoDB Schools
+  // ========== SCHOOLS (Port 5000) ==========
   static async getSchools() {
     try {
-      const response = await fetch(`${MONGO_API_URL}/schools`);
+      const response = await fetch(`${SCHOOLS_API_URL}/api/schools`);
       const data = await response.json();
       return data.success ? data.data : [];
     } catch (error) {
@@ -118,11 +115,9 @@ class ApiService {
 
   static async addSchool(schoolData) {
     try {
-      const response = await fetch(`${MONGO_API_URL}/schools`, {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/schools`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schoolData)
       });
       return await response.json();
@@ -130,6 +125,111 @@ class ApiService {
       console.error('Error adding school:', error);
       return { success: false, error: 'Failed to add school' };
     }
+  }
+
+  // ========== SEARCH ENDPOINTS (Port 5000) ==========
+  static async search(query, type = 'smart') {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, type })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Search error:', error);
+      return { success: false, error: 'Search failed', results: [] };
+    }
+  }
+
+  static async enhancedSearch(query) {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/search/enhanced`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Enhanced search error:', error);
+      return { success: false, error: 'Enhanced search failed', results: [] };
+    }
+  }
+
+  static async getSearchSuggestions(query) {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/search/suggestions?q=${encodeURIComponent(query)}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Suggestions error:', error);
+      return { success: false, suggestions: [] };
+    }
+  }
+
+  // ========== ANALYTICS (Port 5000) ==========
+  static async getStats() {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/stats`);
+      return await response.json();
+    } catch (error) {
+      console.error('Stats error:', error);
+      return { success: false, data: { users: 0, courses: 0, enrollments: 0 } };
+    }
+  }
+
+  static async getAnalyticsSummary() {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/analytics/summary`);
+      return await response.json();
+    } catch (error) {
+      console.error('Analytics error:', error);
+      return { success: false, data: { totals: { users: 0, courses: 0, enrollments: 0 } } };
+    }
+  }
+
+  // ========== USER COURSES (MOCK for now) ==========
+  static async getUserCourses() {
+    // Return mock data to prevent errors
+    return {
+      success: true,
+      data: [
+        { id: 1, name: 'Python Programming', progress: 75, enrolledDate: '2024-01-15' },
+        { id: 2, name: 'Web Development', progress: 45, enrolledDate: '2024-02-01' },
+        { id: 3, name: 'Data Science Basics', progress: 20, enrolledDate: '2024-02-10' }
+      ]
+    };
+  }
+
+  // ========== HEALTH CHECK ==========
+  static async checkSearchHealth() {
+    try {
+      const response = await fetch(`${SCHOOLS_API_URL}/api/search/health`);
+      return await response.json();
+    } catch (error) {
+      console.error('Health check error:', error);
+      return { success: false, status: 'unavailable' };
+    }
+  }
+
+  // ========== TEST CONNECTIONS ==========
+  static async testConnections() {
+    const results = {};
+    
+    try {
+      const coursesResponse = await fetch(`${COURSES_API_URL}/`);
+      results.coursesBackend = coursesResponse.ok;
+    } catch {
+      results.coursesBackend = false;
+    }
+    
+    try {
+      const schoolsResponse = await fetch(`${SCHOOLS_API_URL}/`);
+      results.schoolsBackend = schoolsResponse.ok;
+    } catch {
+      results.schoolsBackend = false;
+    }
+    
+    return results;
   }
 }
 

@@ -1,0 +1,398 @@
+const express = require('express');
+const router = express.Router();
+
+// Sample course data for testing (will work with or without MongoDB)
+const sampleCourses = [
+  {
+    _id: "1",
+    title: "Python Programming",
+    description: "Learn Python programming from scratch. Perfect for beginners who want to start coding.",
+    category: "Programming",
+    level: "Beginner",
+    instructor: "John Smith",
+    duration: "7 weeks",
+    rating: 4.5,
+    enrolledStudents: 52,
+    price: "$39.99",
+    tags: ["python", "programming", "beginner", "coding"]
+  },
+  {
+    _id: "2",
+    title: "Web Development Fundamentals",
+    description: "Learn HTML, CSS, and JavaScript to build modern websites.",
+    category: "Web Development",
+    level: "Beginner",
+    instructor: "Sarah Johnson",
+    duration: "6 weeks",
+    rating: 4.7,
+    enrolledStudents: 45,
+    price: "$49.99",
+    tags: ["web", "html", "css", "javascript", "beginner"]
+  },
+  {
+    _id: "3",
+    title: "Data Science with Python",
+    description: "Introduction to data science, analysis, and visualization using Python.",
+    category: "Data Science",
+    level: "Intermediate",
+    instructor: "Michael Chen",
+    duration: "8 weeks",
+    rating: 4.7,
+    enrolledStudents: 32,
+    price: "$59.99",
+    tags: ["data", "python", "analysis", "visualization"]
+  },
+  {
+    _id: "4",
+    title: "React for Beginners",
+    description: "Learn React.js to build modern web applications with reusable components.",
+    category: "Web Development",
+    level: "Beginner",
+    instructor: "Emma Wilson",
+    duration: "6 weeks",
+    rating: 4.7,
+    enrolledStudents: 41,
+    price: "$54.99",
+    tags: ["react", "javascript", "frontend", "web"]
+  },
+  {
+    _id: "5",
+    title: "Machine Learning Fundamentals",
+    description: "Introduction to AI and machine learning concepts and algorithms.",
+    category: "AI/ML",
+    level: "Intermediate",
+    instructor: "Dr. AI Expert",
+    duration: "10 weeks",
+    rating: 4.6,
+    enrolledStudents: 28,
+    price: "$69.99",
+    tags: ["ai", "ml", "machine learning", "algorithms"]
+  },
+  {
+    _id: "6",
+    title: "UI/UX Design Principles",
+    description: "Learn user interface and user experience design fundamentals.",
+    category: "Design",
+    level: "Beginner",
+    instructor: "David Brown",
+    duration: "5 weeks",
+    rating: 4.6,
+    enrolledStudents: 38,
+    price: "$44.99",
+    tags: ["design", "ui", "ux", "user experience"]
+  },
+  {
+    _id: "7",
+    title: "Advanced JavaScript",
+    description: "Deep dive into advanced JavaScript concepts and patterns.",
+    category: "Programming",
+    level: "Advanced",
+    instructor: "JavaScript Pro",
+    duration: "8 weeks",
+    rating: 4.8,
+    enrolledStudents: 25,
+    price: "$64.99",
+    tags: ["javascript", "advanced", "programming"]
+  },
+  {
+    _id: "8",
+    title: "Full Stack Development",
+    description: "Build complete web applications with React, Node.js, and MongoDB.",
+    category: "Web Development",
+    level: "Intermediate",
+    instructor: "Full Stack Expert",
+    duration: "12 weeks",
+    rating: 4.9,
+    enrolledStudents: 35,
+    price: "$79.99",
+    tags: ["fullstack", "react", "node", "mongodb"]
+  }
+];
+
+// Basic keyword search
+const performKeywordSearch = (query) => {
+  const queryLower = query.toLowerCase();
+  return sampleCourses.filter(course => {
+    return (
+      course.title.toLowerCase().includes(queryLower) ||
+      course.description.toLowerCase().includes(queryLower) ||
+      course.category.toLowerCase().includes(queryLower) ||
+      course.level.toLowerCase().includes(queryLower) ||
+      course.instructor.toLowerCase().includes(queryLower) ||
+      course.tags.some(tag => tag.toLowerCase().includes(queryLower))
+    );
+  });
+};
+
+// Smart search with basic NLP
+const performSmartSearch = (query) => {
+  const queryLower = query.toLowerCase();
+  
+  // Define search patterns and synonyms
+  const searchPatterns = {
+    'web': ['web', 'website', 'frontend', 'backend', 'fullstack', 'javascript', 'react', 'html', 'css', 'node'],
+    'ai': ['ai', 'artificial intelligence', 'machine learning', 'neural', 'deep learning', 'ml'],
+    'data': ['data', 'analytics', 'python', 'statistics', 'analysis', 'data science'],
+    'design': ['design', 'ui', 'ux', 'interface', 'user experience', 'figma'],
+    'programming': ['programming', 'coding', 'software', 'developer', 'code'],
+    'python': ['python', 'django', 'flask', 'pandas', 'numpy'],
+    'javascript': ['javascript', 'js', 'ecmascript', 'typescript'],
+    'beginner': ['beginner', 'starter', 'fundamentals', 'basics', 'intro', 'getting started'],
+    'advanced': ['advanced', 'expert', 'master', 'pro', 'professional']
+  };
+
+  // Find matching patterns
+  const matchedPatterns = [];
+  Object.entries(searchPatterns).forEach(([pattern, synonyms]) => {
+    if (synonyms.some(synonym => queryLower.includes(synonym))) {
+      matchedPatterns.push(pattern);
+    }
+  });
+
+  // Search courses with scoring
+  const results = sampleCourses.map(course => {
+    let score = 0;
+    
+    // Exact matches
+    if (course.title.toLowerCase().includes(queryLower)) score += 3;
+    if (course.description.toLowerCase().includes(queryLower)) score += 2;
+    
+    // Category and level matches
+    if (course.category.toLowerCase().includes(queryLower)) score += 2;
+    if (course.level.toLowerCase().includes(queryLower)) score += 1;
+    
+    // Pattern-based scoring
+    matchedPatterns.forEach(pattern => {
+      if (course.category.toLowerCase().includes(pattern)) score += 2;
+      if (course.title.toLowerCase().includes(pattern)) score += 1;
+      if (course.description.toLowerCase().includes(pattern)) score += 1;
+      if (course.tags.some(tag => tag.toLowerCase().includes(pattern))) score += 1;
+    });
+    
+    // Rating boost
+    score += (course.rating - 4) * 0.5;
+    
+    // Popularity boost
+    score += Math.log10(course.enrolledStudents + 1) * 0.3;
+
+    return {
+      ...course,
+      relevanceScore: Math.min(100, Math.round(score * 3))
+    };
+  })
+  .filter(course => course.relevanceScore > 10)
+  .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+  return results;
+};
+
+// ========== ROUTES ==========
+
+// Basic search endpoint
+router.post('/basic', (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({
+        success: true,
+        results: [],
+        message: 'Please enter at least 2 characters'
+      });
+    }
+
+    console.log(`🔍 Basic search: "${query}"`);
+    const results = performKeywordSearch(query);
+
+    res.json({
+      success: true,
+      results: results.slice(0, 10),
+      count: results.length,
+      query,
+      searchType: 'keyword'
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Search failed',
+      results: []
+    });
+  }
+});
+
+// Smart search endpoint
+router.post('/smart', (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({
+        success: true,
+        results: [],
+        message: 'Please enter at least 2 characters'
+      });
+    }
+
+    console.log(`🤖 Smart search: "${query}"`);
+    const results = performSmartSearch(query);
+
+    res.json({
+      success: true,
+      results: results.slice(0, 10),
+      count: results.length,
+      query,
+      searchType: 'smart',
+      patterns: results.length > 0 ? 'AI-enhanced search' : 'No patterns matched'
+    });
+
+  } catch (error) {
+    console.error('Smart search error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Smart search failed',
+      results: []
+    });
+  }
+});
+
+// Unified search endpoint (defaults to smart)
+router.post('/', (req, res) => {
+  try {
+    const { query, type = 'smart' } = req.body;
+    
+    if (!query || query.trim().length < 2) {
+      return res.json({
+        success: true,
+        results: [],
+        message: 'Please enter at least 2 characters'
+      });
+    }
+
+    console.log(`🎯 ${type} search: "${query}"`);
+    
+    let results;
+    if (type === 'keyword') {
+      results = performKeywordSearch(query);
+    } else {
+      results = performSmartSearch(query);
+    }
+
+    res.json({
+      success: true,
+      results: results.slice(0, 10),
+      count: results.length,
+      query,
+      searchType: type
+    });
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Search failed',
+      results: []
+    });
+  }
+});
+
+// Get search suggestions
+router.get('/suggestions', (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q || q.length < 2) {
+      return res.json({
+        success: true,
+        suggestions: []
+      });
+    }
+
+    const queryLower = q.toLowerCase();
+    
+    // Get unique categories
+    const categories = [...new Set(sampleCourses.map(c => c.category))];
+    
+    // Get popular search terms
+    const popularTerms = [
+      ...categories,
+      'Python',
+      'JavaScript',
+      'React',
+      'AI',
+      'Machine Learning',
+      'Data Science',
+      'Web Development',
+      'Beginner',
+      'Advanced',
+      'Design',
+      'Programming'
+    ];
+
+    // Filter suggestions
+    const suggestions = popularTerms
+      .filter(term => term.toLowerCase().includes(queryLower))
+      .slice(0, 8);
+
+    // Add course title suggestions
+    const courseSuggestions = sampleCourses
+      .filter(course => course.title.toLowerCase().includes(queryLower))
+      .map(course => course.title)
+      .slice(0, 4);
+
+    const allSuggestions = [...new Set([...suggestions, ...courseSuggestions])];
+
+    res.json({
+      success: true,
+      suggestions: allSuggestions.slice(0, 10),
+      total: allSuggestions.length
+    });
+
+  } catch (error) {
+    console.error('Suggestions error:', error);
+    res.status(500).json({
+      success: false,
+      suggestions: []
+    });
+  }
+});
+
+// Health check - GET endpoint
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      'POST /': 'Unified search',
+      'POST /basic': 'Keyword search', 
+      'POST /smart': 'AI search',
+      'GET /test': 'Test endpoint',
+      'GET /health': 'Health check'
+    }
+  });
+});
+
+// Test endpoint
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Search API is working',
+    totalCourses: sampleCourses.length,
+    endpoints: {
+      'POST /api/search': 'Unified search (defaults to smart)',
+      'POST /api/search/basic': 'Keyword search',
+      'POST /api/search/smart': 'AI-enhanced search',
+      'GET /api/search/suggestions?q=query': 'Get search suggestions',
+      'GET /api/search/test': 'Test endpoint'
+    },
+    sampleQuery: {
+      method: 'POST',
+      url: '/api/search',
+      body: { query: 'python', type: 'smart' }
+    }
+  });
+});
+
+module.exports = router;

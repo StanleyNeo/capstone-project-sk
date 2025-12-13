@@ -47,13 +47,16 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Calculate score (0-100)
-    const score = Math.floor(
+    let score = Math.floor(
       (Object.values(requirements).filter(Boolean).length / 6) * 100
     );
 
     // Additional scoring for length
     if (password.length >= 12) score += 10;
     if (password.length >= 16) score += 10;
+
+    // Cap at 100
+    score = Math.min(100, score);
 
     // Determine strength level
     let strength, color;
@@ -86,7 +89,7 @@ export const AuthProvider = ({ children }) => {
 
     return {
       strength,
-      score: Math.min(100, score),
+      score,
       color,
       requirements,
       messages
@@ -99,7 +102,7 @@ export const AuthProvider = ({ children }) => {
     return emailRegex.test(email);
   };
 
-  // Backend validation simulation (would be done server-side in production)
+  // Backend validation simulation
   const validatePasswordBackend = (password) => {
     const strength = checkPasswordStrength(password);
     
@@ -134,7 +137,11 @@ export const AuthProvider = ({ children }) => {
     const passwordValidation = validatePasswordBackend(userData.password);
     if (!passwordValidation.valid) {
       setError(passwordValidation.message);
-      return { success: false, error: passwordValidation.message, strength: passwordValidation.strength };
+      return { 
+        success: false, 
+        error: passwordValidation.message, 
+        strength: passwordValidation.strength 
+      };
     }
     
     const result = await ApiService.register(userData);

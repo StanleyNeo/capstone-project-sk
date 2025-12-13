@@ -3,12 +3,15 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const app = express();
 const PORT = 5000;
+const searchRoutes = require('./routes/searchRoutes');
+// const searchRoutes = require('./routes/search');
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/search', searchRoutes);
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/schoolsystem', {
+mongoose.connect('mongodb://localhost:27017/lms_analytics', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 });
@@ -16,247 +19,577 @@ mongoose.connect('mongodb://localhost:27017/schoolsystem', {
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', () => {
-  console.log('MongoDB connected successfully');
+  console.log('✅ MongoDB connected to lms_analytics database');
 });
 
-// School Schema
-const schoolSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: [true, 'School name is required'],
-    trim: true
-  },
-  address: { 
-    type: String, 
-    required: [true, 'Address is required'],
-    trim: true
-  },
-  principal: { 
-    type: String, 
-    required: [true, 'Principal name is required'],
-    trim: true
-  },
-  establishedYear: {
-    type: Number,
-    min: 1800,
-    max: new Date().getFullYear()
-  },
-  studentCount: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  contactEmail: {
-    type: String,
-    trim: true,
-    lowercase: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+// =================== SIMPLIFIED SCHEMAS ===================
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  userId: { type: String, unique: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  role: { type: String, enum: ['student', 'instructor', 'admin'], default: 'student' },
+  joinDate: { type: Date, default: Date.now },
+  enrolledCourses: { type: Number, default: 0 },
+  completedCourses: { type: Number, default: 0 }
 });
 
-const School = mongoose.model('School', schoolSchema);
+const User = mongoose.model('User', userSchema);
 
 // Course Schema
 const courseSchema = new mongoose.Schema({
-  courseCode: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
-  title: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  description: String,
-  credits: {
-    type: Number,
-    min: 1,
-    max: 6
-  },
-  instructor: String,
-  department: String,
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  courseId: { type: String, unique: true },
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  category: { type: String, required: true },
+  level: { type: String, required: true },
+  instructor: { type: String, required: true },
+  duration: { type: String, required: true },
+  price: { type: Number, default: 0 },
+  rating: { type: Number, default: 0 },
+  enrolledStudents: { type: Number, default: 0 },
+  maxStudents: { type: Number, default: 100 }
 });
 
 const Course = mongoose.model('Course', courseSchema);
 
-// Initialize sample data
-const initializeData = async () => {
+// Enrollment Schema
+const enrollmentSchema = new mongoose.Schema({
+  enrollmentId: { type: String, unique: true },
+  userId: { type: String, required: true },
+  courseId: { type: String, required: true },
+  userName: { type: String, required: true },
+  courseTitle: { type: String, required: true },
+  enrolledAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ['active', 'completed', 'dropped'], default: 'active' },
+  progress: { type: Number, min: 0, max: 100, default: 0 }
+});
+
+const Enrollment = mongoose.model('Enrollment', enrollmentSchema);
+
+// =================== SAMPLE DATA ===================
+
+const generateSampleData = async () => {
   try {
-    // Check if data already exists
-    const schoolCount = await School.countDocuments();
+    console.log('📊 Checking existing data...');
+    
+    const userCount = await User.countDocuments();
     const courseCount = await Course.countDocuments();
+    const enrollmentCount = await Enrollment.countDocuments();
     
-    if (schoolCount === 0) {
-      await School.insertMany([
-        {
-          name: 'Greenwood High School',
-          address: '123 Maple Street, Springfield',
-          principal: 'Mr. John Adams',
-          establishedYear: 1995,
-          studentCount: 1200,
-          contactEmail: 'info@greenwood.edu'
-        },
-        {
-          name: 'Riverside Public School',
-          address: '456 Oak Avenue, Riverdale',
-          principal: 'Ms. Linda Carter',
-          establishedYear: 1980,
-          studentCount: 850,
-          contactEmail: 'contact@riverside.edu'
-        }
-      ]);
-      console.log('Sample schools added');
+    if (userCount > 0) {
+      console.log(`✅ Database already has ${userCount} users, ${courseCount} courses, ${enrollmentCount} enrollments`);
+      return;
     }
     
-    if (courseCount === 0) {
-      await Course.insertMany([
-        {
-          courseCode: 'MATH101',
-          title: 'Mathematics Fundamentals',
-          description: 'Basic mathematics course for beginners',
-          credits: 3,
-          instructor: 'Dr. Smith',
-          department: 'Mathematics'
-        },
-        {
-          courseCode: 'CS201',
-          title: 'Computer Science Basics',
-          description: 'Introduction to programming and algorithms',
-          credits: 4,
-          instructor: 'Prof. Johnson',
-          department: 'Computer Science'
-        }
-      ]);
-      console.log('Sample courses added');
-    }
+    console.log('📊 Generating sample data...');
+
+    // Sample Users
+    const sampleUsers = [
+      { userId: 'STU001', name: 'John Smith', email: 'john@example.com', role: 'student', enrolledCourses: 3, completedCourses: 1 },
+      { userId: 'STU002', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'student', enrolledCourses: 2, completedCourses: 0 },
+      { userId: 'STU003', name: 'Michael Chen', email: 'michael@example.com', role: 'student', enrolledCourses: 1, completedCourses: 0 },
+      { userId: 'STU004', name: 'Emma Wilson', email: 'emma@example.com', role: 'student', enrolledCourses: 2, completedCourses: 1 },
+      { userId: 'STU005', name: 'David Brown', email: 'david@example.com', role: 'student', enrolledCourses: 0, completedCourses: 0 },
+      { userId: 'INS001', name: 'Dr. Emily Wilson', email: 'emily@example.com', role: 'instructor', enrolledCourses: 0, completedCourses: 0 },
+      { userId: 'ADM001', name: 'Admin User', email: 'admin@lms.com', role: 'admin', enrolledCourses: 0, completedCourses: 0 },
+      { userId: 'STU006', name: 'Lisa Wang', email: 'lisa@example.com', role: 'student', enrolledCourses: 1, completedCourses: 0 },
+      { userId: 'STU007', name: 'Robert Kim', email: 'robert@example.com', role: 'student', enrolledCourses: 2, completedCourses: 1 },
+      { userId: 'INS002', name: 'Prof. James Miller', email: 'james@example.com', role: 'instructor', enrolledCourses: 0, completedCourses: 0 }
+    ];
+
+    await User.insertMany(sampleUsers);
+    console.log(`✅ Created ${sampleUsers.length} sample users`);
+
+    // Sample Courses
+    const sampleCourses = [
+      { courseId: 'WEB101', title: 'Web Development Fundamentals', description: 'Learn HTML, CSS, JavaScript', category: 'Web Development', level: 'Beginner', instructor: 'John Smith', duration: '6 weeks', price: 49.99, rating: 4.5, enrolledStudents: 45, maxStudents: 100 },
+      { courseId: 'DS201', title: 'Data Science with Python', description: 'Data analysis and visualization', category: 'Data Science', level: 'Intermediate', instructor: 'Sarah Johnson', duration: '8 weeks', price: 79.99, rating: 4.7, enrolledStudents: 32, maxStudents: 50 },
+      { courseId: 'AI301', title: 'Machine Learning Fundamentals', description: 'Introduction to AI and ML', category: 'AI/ML', level: 'Advanced', instructor: 'Dr. Emily Wilson', duration: '10 weeks', price: 99.99, rating: 4.8, enrolledStudents: 28, maxStudents: 40 },
+      { courseId: 'DES101', title: 'UI/UX Design Principles', description: 'Master user interface design', category: 'Design', level: 'Beginner', instructor: 'Michael Chen', duration: '5 weeks', price: 59.99, rating: 4.6, enrolledStudents: 38, maxStudents: 60 },
+      { courseId: 'PYT101', title: 'Python Programming', description: 'Python from basics to advanced', category: 'Programming', level: 'Beginner', instructor: 'David Brown', duration: '7 weeks', price: 39.99, rating: 4.4, enrolledStudents: 52, maxStudents: 80 },
+      { courseId: 'REA201', title: 'React for Beginners', description: 'Learn React framework', category: 'Web Development', level: 'Intermediate', instructor: 'John Smith', duration: '6 weeks', price: 69.99, rating: 4.7, enrolledStudents: 41, maxStudents: 70 },
+      { courseId: 'MDB101', title: 'MongoDB for Developers', description: 'NoSQL database management', category: 'Database', level: 'Intermediate', instructor: 'Prof. James Miller', duration: '5 weeks', price: 59.99, rating: 4.6, enrolledStudents: 25, maxStudents: 40 },
+      { courseId: 'NJS201', title: 'Node.js Backend Development', description: 'Build server-side applications', category: 'Web Development', level: 'Intermediate', instructor: 'Dr. Emily Wilson', duration: '7 weeks', price: 79.99, rating: 4.8, enrolledStudents: 36, maxStudents: 60 },
+      { courseId: 'ANG101', title: 'Angular Framework', description: 'Complete Angular guide', category: 'Web Development', level: 'Intermediate', instructor: 'Lisa Wang', duration: '8 weeks', price: 69.99, rating: 4.5, enrolledStudents: 29, maxStudents: 50 },
+      { courseId: 'FLT101', title: 'Flutter Mobile Development', description: 'Build cross-platform apps', category: 'Mobile Development', level: 'Intermediate', instructor: 'Robert Kim', duration: '9 weeks', price: 89.99, rating: 4.7, enrolledStudents: 31, maxStudents: 45 }
+    ];
+
+    await Course.insertMany(sampleCourses);
+    console.log(`✅ Created ${sampleCourses.length} sample courses`);
+
+    // Sample Enrollments
+    const sampleEnrollments = [
+      { enrollmentId: 'ENR0001', userId: 'STU001', courseId: 'WEB101', userName: 'John Smith', courseTitle: 'Web Development Fundamentals', status: 'completed', progress: 100 },
+      { enrollmentId: 'ENR0002', userId: 'STU001', courseId: 'DS201', userName: 'John Smith', courseTitle: 'Data Science with Python', status: 'active', progress: 65 },
+      { enrollmentId: 'ENR0003', userId: 'STU001', courseId: 'AI301', userName: 'John Smith', courseTitle: 'Machine Learning Fundamentals', status: 'active', progress: 30 },
+      { enrollmentId: 'ENR0004', userId: 'STU002', courseId: 'DES101', userName: 'Sarah Johnson', courseTitle: 'UI/UX Design Principles', status: 'active', progress: 45 },
+      { enrollmentId: 'ENR0005', userId: 'STU002', courseId: 'PYT101', userName: 'Sarah Johnson', courseTitle: 'Python Programming', status: 'active', progress: 75 },
+      { enrollmentId: 'ENR0006', userId: 'STU003', courseId: 'WEB101', userName: 'Michael Chen', courseTitle: 'Web Development Fundamentals', status: 'dropped', progress: 20 },
+      { enrollmentId: 'ENR0007', userId: 'STU004', courseId: 'REA201', userName: 'Emma Wilson', courseTitle: 'React for Beginners', status: 'completed', progress: 100 },
+      { enrollmentId: 'ENR0008', userId: 'STU004', courseId: 'DES101', userName: 'Emma Wilson', courseTitle: 'UI/UX Design Principles', status: 'active', progress: 55 },
+      { enrollmentId: 'ENR0009', userId: 'STU005', courseId: 'PYT101', userName: 'David Brown', courseTitle: 'Python Programming', status: 'active', progress: 10 },
+      { enrollmentId: 'ENR0010', userId: 'STU006', courseId: 'MDB101', userName: 'Lisa Wang', courseTitle: 'MongoDB for Developers', status: 'active', progress: 60 },
+      { enrollmentId: 'ENR0011', userId: 'STU006', courseId: 'NJS201', userName: 'Lisa Wang', courseTitle: 'Node.js Backend Development', status: 'active', progress: 25 },
+      { enrollmentId: 'ENR0012', userId: 'STU007', courseId: 'FLT101', userName: 'Robert Kim', courseTitle: 'Flutter Mobile Development', status: 'completed', progress: 100 },
+      { enrollmentId: 'ENR0013', userId: 'STU007', courseId: 'ANG101', userName: 'Robert Kim', courseTitle: 'Angular Framework', status: 'active', progress: 40 },
+      { enrollmentId: 'ENR0014', userId: 'INS001', courseId: 'AI301', userName: 'Dr. Emily Wilson', courseTitle: 'Machine Learning Fundamentals', status: 'active', progress: 100 },
+      { enrollmentId: 'ENR0015', userId: 'INS002', courseId: 'MDB101', userName: 'Prof. James Miller', courseTitle: 'MongoDB for Developers', status: 'active', progress: 100 }
+    ];
+
+    await Enrollment.insertMany(sampleEnrollments);
+    console.log(`✅ Created ${sampleEnrollments.length} sample enrollments`);
+
+    console.log('\n✅ Database setup complete!');
+    console.log('📊 Database Statistics:');
+    console.log(`   👥 Users: ${await User.countDocuments()}`);
+    console.log(`   📚 Courses: ${await Course.countDocuments()}`);
+    console.log(`   🎯 Enrollments: ${await Enrollment.countDocuments()}`);
+    
+    const completed = await Enrollment.countDocuments({ status: 'completed' });
+    const total = await Enrollment.countDocuments();
+    console.log(`   ✅ Completed: ${completed}/${total} (${Math.round((completed/total)*100)}%)`);
+
   } catch (error) {
-    console.error('Error initializing data:', error);
+    console.error('❌ Error generating sample data:', error);
   }
 };
 
-// Routes
-// Schools routes
-app.get('/api/schools', async (req, res) => {
+// =================== ANALYTICS API ENDPOINTS ===================
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: '📊 LMS Analytics API',
+    version: '2.0.0',
+    endpoints: [
+      'GET  /api/stats - Quick statistics',
+      'GET  /api/users - List all users',
+      'GET  /api/courses - List all courses',
+      'GET  /api/enrollments - List all enrollments',
+      'GET  /api/analytics/dashboard - Complete dashboard data',
+      'GET  /api/count/users - User count',
+      'GET  /api/count/courses - Course count',
+      'GET  /api/count/enrollments - Enrollment count'
+    ]
+  });
+});
+
+// Quick statistics
+app.get('/api/stats', async (req, res) => {
   try {
-    const schools = await School.find().sort({ name: 1 });
+    const totalUsers = await User.countDocuments();
+    const totalCourses = await Course.countDocuments();
+    const totalEnrollments = await Enrollment.countDocuments();
+    
     res.json({
       success: true,
-      count: schools.length,
-      data: schools
+      data: {
+        users: totalUsers,
+        courses: totalCourses,
+        enrollments: totalEnrollments,
+        timestamp: new Date().toISOString()
+      }
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.post('/api/schools', async (req, res) => {
+// Dashboard analytics
+app.get('/api/analytics/dashboard', async (req, res) => {
   try {
-    const school = new School(req.body);
-    await school.save();
-    res.status(201).json({
+    const totalUsers = await User.countDocuments();
+    const totalCourses = await Course.countDocuments();
+    const totalEnrollments = await Enrollment.countDocuments();
+    const activeEnrollments = await Enrollment.countDocuments({ status: 'active' });
+    const completedEnrollments = await Enrollment.countDocuments({ status: 'completed' });
+    const droppedEnrollments = await Enrollment.countDocuments({ status: 'dropped' });
+    const completionRate = totalEnrollments > 0 ? Math.round((completedEnrollments / totalEnrollments) * 100) : 0;
+
+    // Get recent enrollments
+    const recentEnrollments = await Enrollment.find()
+      .sort({ enrolledAt: -1 })
+      .limit(5);
+
+    // Get top courses by enrollment
+    const topCourses = await Course.find()
+      .sort({ enrolledStudents: -1 })
+      .limit(3);
+
+    // User role distribution
+    const students = await User.countDocuments({ role: 'student' });
+    const instructors = await User.countDocuments({ role: 'instructor' });
+    const admins = await User.countDocuments({ role: 'admin' });
+
+    // Course categories
+    const categories = await Course.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.json({
       success: true,
-      message: 'School created successfully',
-      data: school
+      data: {
+        totals: {
+          users: totalUsers,
+          courses: totalCourses,
+          enrollments: totalEnrollments,
+          activeEnrollments,
+          completedEnrollments,
+          droppedEnrollments
+        },
+        metrics: {
+          completionRate,
+          averageEnrollments: totalUsers > 0 ? (totalEnrollments / totalUsers).toFixed(1) : 0,
+          averageCourseEnrollment: totalCourses > 0 ? (totalEnrollments / totalCourses).toFixed(1) : 0
+        },
+        distribution: {
+          students,
+          instructors,
+          admins
+        },
+        categories,
+        topCourses,
+        recentEnrollments,
+        timestamp: new Date().toISOString()
+      }
     });
-  } catch (err) {
-    res.status(400).json({
-      success: false,
-      error: err.message
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Courses routes
+// Analytics Summary - FIXED ENDPOINT
+app.get('/api/analytics/summary', async (req, res) => {
+  try {
+    const [
+      totalUsers,
+      totalCourses,
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments,
+      droppedEnrollments,
+      studentUsers,
+      instructorUsers,
+      adminUsers
+    ] = await Promise.all([
+      User.countDocuments(),
+      Course.countDocuments(),
+      Enrollment.countDocuments(),
+      Enrollment.countDocuments({ status: 'active' }),
+      Enrollment.countDocuments({ status: 'completed' }),
+      Enrollment.countDocuments({ status: 'dropped' }),
+      User.countDocuments({ role: 'student' }),
+      User.countDocuments({ role: 'instructor' }),
+      User.countDocuments({ role: 'admin' })
+    ]);
+
+    const completionRate = totalEnrollments > 0 ? Math.round((completedEnrollments / totalEnrollments) * 100) : 0;
+    const averageEnrollments = totalUsers > 0 ? (totalEnrollments / totalUsers).toFixed(1) : 0;
+
+    // Get course categories distribution
+    const categories = await Course.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 }, totalEnrolled: { $sum: '$enrolledStudents' } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    // Get enrollment status distribution
+    const enrollmentStatus = await Enrollment.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // Get top 5 courses by enrollment
+    const topCourses = await Course.find()
+      .sort({ enrolledStudents: -1 })
+      .limit(5)
+      .select('title category enrolledStudents rating duration');
+
+    // Get recent enrollments
+    const recentEnrollments = await Enrollment.find()
+      .sort({ enrolledAt: -1 })
+      .limit(5)
+      .select('userName courseTitle status progress enrolledAt');
+
+    // Get user enrollment statistics
+    const userEnrollmentStats = await User.aggregate([
+      { $match: { role: 'student' } },
+      { $project: {
+          name: 1,
+          email: 1,
+          enrolledCourses: 1,
+          completedCourses: 1,
+          completionRate: {
+            $cond: {
+              if: { $gt: ['$enrolledCourses', 0] },
+              then: { $multiply: [{ $divide: ['$completedCourses', '$enrolledCourses'] }, 100] },
+              else: 0
+            }
+          }
+        }
+      },
+      { $sort: { enrolledCourses: -1 } },
+      { $limit: 5 }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totals: {
+          users: totalUsers,
+          courses: totalCourses,
+          enrollments: totalEnrollments,
+          activeEnrollments,
+          completedEnrollments,
+          droppedEnrollments
+        },
+        metrics: {
+          completionRate,
+          averageEnrollments,
+          studentRatio: Math.round((studentUsers / totalUsers) * 100),
+          instructorRatio: Math.round((instructorUsers / totalUsers) * 100),
+          activeRatio: Math.round((activeEnrollments / totalEnrollments) * 100)
+        },
+        distribution: {
+          users: {
+            students: studentUsers,
+            instructors: instructorUsers,
+            admins: adminUsers
+          },
+          categories: categories,
+          enrollmentStatus: enrollmentStatus
+        },
+        topCourses: topCourses,
+        recentEnrollments: recentEnrollments,
+        topStudents: userEnrollmentStats,
+        updatedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Analytics summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Quick count endpoints
+app.get('/api/count/users', async (req, res) => {
+  try {
+    const count = await User.countDocuments();
+    res.json({ success: true, count });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/count/courses', async (req, res) => {
+  try {
+    const count = await Course.countDocuments();
+    res.json({ success: true, count });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/count/enrollments', async (req, res) => {
+  try {
+    const count = await Enrollment.countDocuments();
+    res.json({ success: true, count });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// List endpoints
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find().select('-__v').lean();
+    
+    // Get enrollment stats for each user
+    for (const user of users) {
+      const enrollments = await Enrollment.countDocuments({ userId: user.userId });
+      const completed = await Enrollment.countDocuments({ 
+        userId: user.userId, 
+        status: 'completed' 
+      });
+      user.enrollmentStats = {
+        total: enrollments,
+        completed: completed,
+        completionRate: enrollments > 0 ? Math.round((completed / enrollments) * 100) : 0
+      };
+    }
+
+    res.json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/courses', async (req, res) => {
   try {
-    const courses = await Course.find({ isActive: true });
+    const courses = await Course.find().select('-__v').lean();
     res.json({
       success: true,
       count: courses.length,
       data: courses
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-app.post('/api/courses', async (req, res) => {
+app.get('/api/enrollments', async (req, res) => {
   try {
-    const course = new Course(req.body);
-    await course.save();
-    res.status(201).json({
-      success: true,
-      message: 'Course created successfully',
-      data: course
-    });
-  } catch (err) {
-    res.status(400).json({
-      success: false,
-      error: err.message
-    });
-  }
-});
-
-// Get school by ID
-app.get('/api/schools/:id', async (req, res) => {
-  try {
-    const school = await School.findById(req.params.id);
-    if (!school) {
-      return res.status(404).json({
-        success: false,
-        error: 'School not found'
-      });
-    }
+    const enrollments = await Enrollment.find().select('-__v').lean();
     res.json({
       success: true,
-      data: school
+      count: enrollments.length,
+      data: enrollments
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Home route
-app.get('/', (req, res) => {
+// Enrollment status breakdown
+app.get('/api/enrollments/status', async (req, res) => {
+  try {
+    const active = await Enrollment.countDocuments({ status: 'active' });
+    const completed = await Enrollment.countDocuments({ status: 'completed' });
+    const dropped = await Enrollment.countDocuments({ status: 'dropped' });
+    
+    res.json({
+      success: true,
+      data: {
+        active,
+        completed,
+        dropped,
+        total: active + completed + dropped
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Course categories breakdown
+app.get('/api/courses/categories', async (req, res) => {
+  try {
+    const categories = await Course.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 }, totalEnrolled: { $sum: '$enrolledStudents' } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    res.json({
+      success: true,
+      data: categories
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Search users
+app.get('/api/users/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ success: false, error: 'Search query required' });
+    }
+
+    const users = await User.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+        { role: { $regex: query, $options: 'i' } }
+      ]
+    }).select('-__v').limit(10);
+
+    res.json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get user by ID
+app.get('/api/users/:userId', async (req, res) => {
+  try {
+    const user = await User.findOne({ userId: req.params.userId }).select('-__v');
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Get user's enrollments
+    const enrollments = await Enrollment.find({ userId: req.params.userId })
+      .select('courseTitle status progress enrolledAt')
+      .sort({ enrolledAt: -1 });
+
+    res.json({
+      success: true,
+      data: {
+        user,
+        enrollments
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
   res.json({
-    message: 'School Management System API (MongoDB)',
-    version: '1.0.0',
-    endpoints: [
-      'GET  /api/schools - List all schools',
-      'POST /api/schools - Add new school',
-      'GET  /api/schools/:id - Get school by ID',
-      'GET  /api/courses - List all courses',
-      'POST /api/courses - Add new course'
+    success: true,
+    status: 'healthy',
+    database: db.readyState === 1 ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// =================== START SERVER ===================
+
+const startServer = async () => {
+  await generateSampleData();
+  
+
+//  Mock schools endpoint (add before app.listen)
+app.get('/api/schools', (req, res) => {
+  res.json({
+    success: true,
+    data: [
+      { id: 1, name: "Computer Science School", courses: 10 },
+      { id: 2, name: "Data Science Institute", courses: 8 },
+      { id: 3, name: "AI Research Center", courses: 6 }
     ]
   });
 });
 
-// Initialize data and start server
-initializeData().then(() => {
+
   app.listen(PORT, () => {
-    console.log(`MongoDB Backend running on http://localhost:${PORT}`);
-    console.log('Database initialized with sample data');
+    console.log(`\n🚀 MongoDB Analytics Backend`);
+    console.log(`📍 Port: ${PORT}`);
+    console.log(`🌐 URL: http://localhost:${PORT}`);
+    console.log(`📊 Quick Stats: http://localhost:${PORT}/api/stats`);
+    console.log(`📈 Dashboard: http://localhost:${PORT}/api/analytics/dashboard`);
+    console.log(`📋 Summary: http://localhost:${PORT}/api/analytics/summary`);
+    console.log(`\n💡 Try these API endpoints:`);
+    console.log(`   curl http://localhost:${PORT}/api/count/users`);
+    console.log(`   curl http://localhost:${PORT}/api/count/enrollments`);
+    console.log(`   curl http://localhost:${PORT}/api/analytics/summary`);
+    console.log(`\n💡 MongoDB Shell Commands:`);
+    console.log(`   mongo`);
+    console.log(`   use lms_analytics`);
+    console.log(`   db.users.count()`);
+    console.log(`   db.enrollments.count({status: "completed"})`);
   });
-});
+};
+
+startServer().catch(console.error);

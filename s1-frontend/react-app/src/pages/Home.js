@@ -4,6 +4,10 @@ import CourseToggle from '../components/CourseToggle';
 import Chatbot from '../components/Chatbot';
 import { useAuth } from '../contexts/AuthContext';
 import ApiService from '../services/api';
+import DatabaseStats from '../components/DatabaseStats';
+import { Link } from 'react-router-dom'; // Add this import
+// import SimpleSearch from '../components/SimpleSearch';
+import SmartSearch from '../components/SmartSearch';
 
 function Home() {
   const { currentUser, isAuthenticated } = useAuth();
@@ -158,6 +162,38 @@ function Home() {
           )}
         </div>
       </div>
+
+      {/* Add this component somewhere in the Home page (maybe after the AI Recommendation Engine) */}
+        <div className="row mt-4">
+          <div className="col-md-8">
+            <DatabaseStats />
+            {/* Add other content here */}
+          </div>
+          <div className="col-md-4">
+            <SmartSearch />
+            
+            {/* Quick Stats Card */}
+            <div className="card shadow-sm mb-4">
+              <div className="card-body">
+                <h6 className="card-title">📈 Quick Stats</h6>
+                <div className="small">
+                  <div className="d-flex justify-content-between mb-2">
+                    <span>Active Courses</span>
+                    <span className="text-primary">6</span>
+                  </div>
+                  <div className="d-flex justify-content-between mb-2">
+                    <span>Total Students</span>
+                    <span className="text-success">5</span>
+                  </div>
+                  <div className="d-flex justify-content-between">
+                    <span>Completion Rate</span>
+                    <span className="text-warning">22%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* Featured Courses */}
       <div className="card mb-4">

@@ -296,6 +296,12 @@ function Login() {
                       setIsLogin(!isLogin);
                       setFormError('');
                       setPasswordStrength(null);
+                      setFormData({
+                        name: '',
+                        email: '',
+                        password: '',
+                        confirmPassword: ''
+                      });
                     }}
                   >
                     {isLogin ? 'Create New Account' : 'Login to Existing Account'}

@@ -18,20 +18,23 @@ export const DataProvider = ({ children }) => {
 
   // Load initial data
   useEffect(() => {
+    // In DataContext.js, update this function:
     const loadInitialData = async () => {
-      setLoading(true);
       try {
-        const [coursesData, schoolsData] = await Promise.all([
-          ApiService.getCourses(),
-          ApiService.getSchools()
-        ]);
+        setLoading(true);
         
-        setCourses(coursesData.data || coursesData);
-        setSchools(schoolsData.data || schoolsData);
+        // Use the new method
+        const userCoursesResponse = await ApiService.getUserCourses();
+        setUserCourses(userCoursesResponse.data || []);
         
-        // Load user's courses
-        const userCoursesData = await ApiService.getUserCourses(currentUser.id);
-        setUserCourses(userCoursesData.data?.courses || []);
+        // Keep other calls
+        const schoolsResponse = await ApiService.getSchools();
+        setSchools(schoolsResponse || []);
+        
+        // Add search health check
+        const healthResponse = await ApiService.checkSearchHealth();
+        setSearchHealth(healthResponse);
+        
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {

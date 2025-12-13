@@ -1,7 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
+
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Courses from './pages/Courses';
@@ -9,6 +10,10 @@ import Schools from './pages/Schools';
 import Dashboard from './pages/Dashboard';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import AdminDashboard from './pages/AdminDashboard';
+import SearchTest from './pages/SearchTest';
+import AIFeatures from './pages/AIFeatures';
+import DatabaseStats from './components/DatabaseStats';
 
 function App() {
   return (
@@ -36,6 +41,17 @@ function App() {
                     <li className="nav-item">
                       <a className="nav-link" href="/dashboard">Dashboard</a>
                     </li>
+                    <li className="nav-item">
+                      <a className="nav-link" href="/admin">Admin</a>
+                    </li>
+
+                    <li className="nav-item">
+                      <Link className="nav-link" to="/ai-features">
+                        <i className="fas fa-robot me-1"></i>
+                        AI Features
+                      </Link>
+                    </li>
+
                   </ul>
                   <ul className="navbar-nav">
                     <li className="nav-item">
@@ -52,10 +68,13 @@ function App() {
             <div className="container mt-4">
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/ai-features" element={<AIFeatures />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/courses" element={<Courses />} />
                 <Route path="/schools" element={<Schools />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/search-test" element={<SearchTest />} />
               </Routes>
             </div>
             
